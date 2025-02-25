@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -307,20 +307,74 @@ function UserTypeDialog() {
   );
 }
 
-// Second step in sign up - entering account details
+// Improved SignUpForm component with password strength indicator
 function SignUpForm({ userType }: { userType: UserType }) {
-  const [username, setUsername] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [authMethod, setAuthMethod] = useState<string>("email");
+
+  // Password validation
+  const [passwordStrength, setPasswordStrength] = useState(0);
+  
+  // Check password strength
+  const checkPasswordStrength = (password: string) => {
+    let strength = 0;
+    if (password.length >= 8) strength += 1;
+    if (/[A-Z]/.test(password)) strength += 1;
+    if (/[a-z]/.test(password)) strength += 1;
+    if (/[0-9]/.test(password)) strength += 1;
+    if (/[^A-Za-z0-9]/.test(password)) strength += 1;
+    setPasswordStrength(strength);
+  };
+
+  useEffect(() => {
+    if (password) {
+      checkPasswordStrength(password);
+    } else {
+      setPasswordStrength(0);
+    }
+  }, [password]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+
+    // Form validation
+    if (!name.trim()) {
+      setError("Name is required");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Email is required");
+      setIsLoading(false);
+      return;
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long");
+      setIsLoading(false);
+      return;
+    }
+
+    if (passwordStrength < 3) {
+      setError("Please choose a stronger password with a mix of letters, numbers, and symbols");
+      setIsLoading(false);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -329,7 +383,7 @@ function SignUpForm({ userType }: { userType: UserType }) {
     }
 
     try {
-      // First register the user
+      // Register the user
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -339,12 +393,12 @@ function SignUpForm({ userType }: { userType: UserType }) {
           email,
           password,
           userType,
-          name: username,
+          name,
         }),
       });
 
       const data = await response.json();
-
+      console.log(data, "=-=-=")
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create account');
       }
@@ -356,7 +410,6 @@ function SignUpForm({ userType }: { userType: UserType }) {
         redirect: false,
         email,
         password,
-        userType, // Pass the user type for the credentials provider
       });
 
       if (signInResult?.error) {
@@ -395,7 +448,7 @@ function SignUpForm({ userType }: { userType: UserType }) {
         </DialogDescription>
       </DialogHeader>
       
-      <Tabs defaultValue="email" className="w-full" onValueChange={(value) => setAuthMethod(value)}>
+      <Tabs defaultValue="email" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="google">Google</TabsTrigger>
@@ -413,11 +466,11 @@ function SignUpForm({ userType }: { userType: UserType }) {
               <div className="relative">
                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                 <Input
-                  id="username"
-                  placeholder="Username"
+                  id="name"
+                  placeholder="Full Name"
                   className="pl-10 h-9"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   required
                 />
               </div>
@@ -449,6 +502,23 @@ function SignUpForm({ userType }: { userType: UserType }) {
                   required
                 />
               </div>
+              {password && (
+                <div className="space-y-1">
+                  <div className="w-full h-1 bg-gray-200 rounded-full">
+                    <div 
+                      className={`h-full rounded-full transition-all ${
+                        passwordStrength < 2 ? 'bg-red-500' : 
+                        passwordStrength < 4 ? 'bg-yellow-500' : 'bg-green-500'
+                      }`}
+                      style={{ width: `${(passwordStrength / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {passwordStrength < 2 ? 'Weak password' : 
+                     passwordStrength < 4 ? 'Medium password' : 'Strong password'}
+                  </p>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <div className="relative">

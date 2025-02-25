@@ -57,6 +57,7 @@ export async function PATCH(request: Request) {
       
       if (!existingApplicant) {
         await prisma.applicant.create({
+          //@ts-ignore
           data: {
             userId: session.user.id,
           },

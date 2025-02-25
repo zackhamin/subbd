@@ -1,5 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -10,34 +9,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Enum for user types
 enum UserType {
-  RECRUITER
   APPLICANT
+  RECRUITER
 }
 
-// Base User model for authentication
 model User {
   id            String    @id @default(cuid())
   name          String?
   email         String    @unique
   emailVerified DateTime?
-  password      String? // Hashed password for credentials auth
   image         String?
+  password      String?
   userType      UserType?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  // Auth.js related fields
-  accounts      Account[]
-  sessions      Session[]
-
-  // Relationships based on user type
-  recruiter     Recruiter?
-  applicant     Applicant?
+  accounts  Account[]
+  sessions  Session[]
+  applicant Applicant?
+  recruiter Recruiter?
 }
 
-// Auth.js required models
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -73,215 +66,132 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// Recruiter profile (extension of User)
-model Recruiter {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  companyName      String?
-  title            String?
-  bio              String?  @db.Text
-  location         String?
-  industry         String?
-  websiteUrl       String?
-  verified         Boolean  @default(false)
-  // Substack-like features
-  allowSubscription Boolean @default(true)
-  
-  // Relationships
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobs             Job[]
-  posts            Post[]
-  followers        ApplicantFollowsRecruiter[]
-  // Skills they're looking for
-  desiredSkills    RecruiterDesiredSkill[]
-}
-
-// Applicant profile (extension of User)
+// Applicant Profile Models
 model Applicant {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  headline       String?
-  bio            String?  @db.Text
-  location       String?
-  phone          String?
-  websiteUrl     String?
-  openToWork     Boolean  @default(true)
-  
-  // Relationships
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  resumes        Resume[]
-  applications   JobApplication[]
-  followingRecruiters ApplicantFollowsRecruiter[]
-  skills         ApplicantSkill[]
-  education      Education[]
-  experience     Experience[]
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  headline          String?
+  bio               String?  @db.Text
+  yearsOfExperience Int?     @default(0)
+  jobTitle          String?
+  location          String?
+  resumeUrl         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills              Skill[]
+  education           Education[]
+  experience          Experience[]
+  applications        JobApplication[]
+  followingRecruiters Follow[]         @relation("ApplicantToRecruiterFollow")
 }
 
-// Represents a job posting
-model Job {
-  id              String   @id @default(cuid())
-  recruiterId     String
-  title           String
-  description     String   @db.Text
-  location        String?
-  remote          Boolean  @default(false)
-  salaryMin       Float?
-  salaryMax       Float?
-  salaryCurrency  String?  @default("USD")
-  companyName     String?
-  employmentType  String?  // Full-time, Part-time, Contract, etc.
-  experienceLevel String?  // Entry, Mid, Senior, etc.
-  published       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  expiresAt       DateTime?
-  
-  // Relationships
-  recruiter       Recruiter @relation(fields: [recruiterId], references: [id])
-  applications    JobApplication[]
-  requiredSkills  JobSkill[]
-}
-
-// Job Application
-model JobApplication {
-  id          String   @id @default(cuid())
-  jobId       String
+model Skill {
+  id          String    @id @default(cuid())
+  name        String
   applicantId String
-  resumeId    String?
-  status      String   @default("PENDING") // PENDING, REVIEWED, INTERVIEW, REJECTED, OFFERED, ACCEPTED
-  coverLetter String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relationships
-  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   applicant   Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
-  resume      Resume?  @relation(fields: [resumeId], references: [id])
+
+  @@unique([applicantId, name])
 }
 
-// Resume model
-model Resume {
-  id          String   @id @default(cuid())
+model Education {
+  id           String    @id @default(cuid())
+  institution  String
+  degree       String
+  fieldOfStudy String
+  from         String
+  to           String?
+  current      Boolean   @default(false)
+  applicantId  String
+  applicant    Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+}
+
+model Experience {
+  id          String    @id @default(cuid())
+  company     String
+  position    String
+  description String?   @db.Text
+  from        DateTime
+  to          DateTime?
+  current     Boolean   @default(false)
   applicantId String
-  title       String
-  fileUrl     String
-  isDefault   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relationships
   applicant   Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+}
+
+// Recruiter Profile Models
+model Recruiter {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  companyName        String
+  position           String?
+  industry           String?
+  companySize        String?
+  companyDescription String?  @db.Text
+  companyWebsite     String?
+  companyLocation    String?
+  phoneNumber        String?
+  logoUrl            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobListings     JobListing[]
+  specializations Specialization[]
+  followedBy      Follow[]         @relation("ApplicantToRecruiterFollow")
+}
+
+model Specialization {
+  id          String    @id @default(cuid())
+  name        String
+  recruiterId String
+  recruiter   Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([recruiterId, name])
+}
+
+// Job Listings and Applications
+model JobListing {
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @db.Text
+  requirements String?  @db.Text
+  location     String?
+  salary       String?
+  type         String? // Full-time, Part-time, Contract, etc.
+  isRemote     Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  recruiterId  String
+
+  recruiter    Recruiter        @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
   applications JobApplication[]
 }
 
-// Skills models
-model Skill {
-  id              String   @id @default(cuid())
-  name            String   @unique
-  category        String?
-  
-  // Relationships
-  applicantSkills ApplicantSkill[]
-  jobSkills       JobSkill[]
-  recruiterDesiredSkills RecruiterDesiredSkill[]
+model JobApplication {
+  id           String   @id @default(cuid())
+  coverLetter  String?  @db.Text
+  status       String   @default("pending") // pending, reviewed, interviewed, rejected, accepted
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  applicantId  String
+  jobListingId String
+
+  applicant  Applicant  @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  jobListing JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
 }
 
-model ApplicantSkill {
-  id          String   @id @default(cuid())
-  applicantId String
-  skillId     String
-  level       Int?     // 1-5 proficiency level
-  
-  // Relationships
-  applicant   Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
-  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  
-  @@unique([applicantId, skillId])
-}
-
-model JobSkill {
-  id          String   @id @default(cuid())
-  jobId       String
-  skillId     String
-  required    Boolean  @default(true)
-  
-  // Relationships
-  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  
-  @@unique([jobId, skillId])
-}
-
-model RecruiterDesiredSkill {
-  id          String   @id @default(cuid())
-  recruiterId String
-  skillId     String
-  
-  // Relationships
-  recruiter   Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
-  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  
-  @@unique([recruiterId, skillId])
-}
-
-// Education history
-model Education {
-  id          String   @id @default(cuid())
-  applicantId String
-  institution String
-  degree      String?
-  fieldOfStudy String?
-  startDate   DateTime?
-  endDate     DateTime?
-  current     Boolean  @default(false)
-  description String?  @db.Text
-  
-  // Relationships
-  applicant   Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
-}
-
-// Work experience
-model Experience {
-  id          String   @id @default(cuid())
-  applicantId String
-  company     String
-  title       String
-  location    String?
-  startDate   DateTime?
-  endDate     DateTime?
-  current     Boolean  @default(false)
-  description String?  @db.Text
-  
-  // Relationships
-  applicant   Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
-}
-
-// Following relationship between Applicants and Recruiters
-model ApplicantFollowsRecruiter {
+// Following/Subscription system
+model Follow {
   id          String   @id @default(cuid())
   applicantId String
   recruiterId String
   createdAt   DateTime @default(now())
-  
-  // Relationships
-  applicant   Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
-  recruiter   Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
-  
+
+  applicant Applicant @relation("ApplicantToRecruiterFollow", fields: [applicantId], references: [id], onDelete: Cascade)
+  recruiter Recruiter @relation("ApplicantToRecruiterFollow", fields: [recruiterId], references: [id], onDelete: Cascade)
+
   @@unique([applicantId, recruiterId])
-}
-
-// Content/posts model (Substack-like feature)
-model Post {
-  id          String   @id @default(cuid())
-  recruiterId String
-  title       String
-  content     String   @db.Text
-  excerpt     String?  @db.Text
-  published   Boolean  @default(false)
-  premium     Boolean  @default(false) // For premium content
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relationships
-  recruiter   Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
 }

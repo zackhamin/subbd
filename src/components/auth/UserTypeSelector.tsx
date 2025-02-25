@@ -1,93 +1,83 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { UserSearch, BriefcaseBusiness, Check, ArrowRight, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { UserType } from "@prisma/client";
+import { Button } from "@/components/ui/button";
+import { UserSearch, BriefcaseBusiness, Check } from "lucide-react";
 import { toast } from "sonner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function UserTypeSelector() {
-  const { data: session, status, update } = useSession();
+  const { data: session, update } = useSession();
+  const router = useRouter();
   const [selectedType, setSelectedType] = useState<UserType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
-  // Check if we have a pending user type
   useEffect(() => {
-    const pendingUserType = localStorage.getItem("pendingUserType");
-    if (pendingUserType) {
-      try {
-        // Validate that it's a valid UserType
-        if (Object.values(UserType).includes(pendingUserType as UserType)) {
-          setSelectedType(pendingUserType as UserType);
-        }
-        localStorage.removeItem("pendingUserType");
-      } catch (e) {
-        console.error("Invalid user type in localStorage", e);
-        localStorage.removeItem("pendingUserType");
-      }
+    // Check for pending user type from localStorage (for OAuth flow)
+    const pendingUserType = localStorage.getItem("pendingUserType") as UserType | null;
+    if (pendingUserType && Object.values(UserType).includes(pendingUserType as UserType)) {
+      setSelectedType(pendingUserType as UserType);
+      // Don't immediately update in useEffect to avoid side effects
+      localStorage.removeItem("pendingUserType");
     }
   }, []);
 
-  // Skip this component if user is not logged in
-  if (status !== "authenticated") {
-    return null;
-  }
-
-  // Check if user already has a type
-  if (session?.user?.userType) {
-    return null;
-  }
-
-  const handleSubmit = async () => {
-    if (!selectedType) return;
+  const updateUserType = async (userType: UserType) => {
+    if (!session?.user) return;
     
     setIsSubmitting(true);
-    setError(null);
-    
     try {
-      // Call the API to update the user type
-      const response = await fetch('/api/user/type', {
-        method: 'PATCH',
+      const response = await fetch("/api/user/type", {
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userType: selectedType }),
+        body: JSON.stringify({ userType }),
       });
-      
+
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to update user type');
+        throw new Error(data.error || "Failed to update user type");
       }
+
+      // Update the session to include the new user type
+      await update({ userType });
       
-      // Update the session with the new user type
-      await update({ userType: selectedType });
+      toast.success("Profile type set successfully!");
       
-      toast.success("Account type set successfully!");
-      
-      // Refresh the page to apply new user type
-      router.refresh();
+      // Redirect to profile setup
+      setTimeout(() => {
+        router.push(`/profile/setup?type=${userType.toLowerCase()}`);
+      }, 1000);
     } catch (error) {
-      console.error("Error updating user type:", error);
-      setError(error instanceof Error ? error.message : 'An error occurred');
+      toast.error(error instanceof Error ? error.message : "An error occurred");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleContinue = () => {
+    if (selectedType) {
+      updateUserType(selectedType);
+    }
+  };
+
+  // Only display if the user is authenticated but doesn't have a user type
+  if (!session?.user || session.user.userType) {
+    return null;
+  }
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-      <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-lg">
         <h2 className="text-xl font-bold mb-2">Complete your registration</h2>
-        <p className="text-gray-600 mb-6">
-          Please select how you'll use RecruiterConnect to complete your account setup.
+        <p className="text-gray-500 mb-6">
+          Please select how you'll use RecruiterConnect.
         </p>
-        
-        <div className="space-y-4 mb-6">
+
+        <div className="grid gap-4 mb-6">
           <div 
             className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
               selectedType === UserType.APPLICANT 
@@ -140,22 +130,29 @@ export default function UserTypeSelector() {
             )}
           </div>
         </div>
-        
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        
+
         <div className="flex justify-end">
           <Button 
-            onClick={handleSubmit} 
+            onClick={handleContinue} 
             disabled={!selectedType || isSubmitting}
-            className="flex items-center gap-1"
+            className="flex items-center gap-2"
           >
-            {isSubmitting ? "Setting up your account..." : "Continue"}
-            {!isSubmitting && <ArrowRight size={16} />}
+            {isSubmitting ? "Saving..." : "Continue"}
+            {!isSubmitting && <svg 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path 
+                d="M5 12H19M19 12L12 5M19 12L12 19" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              />
+            </svg>}
           </Button>
         </div>
       </div>

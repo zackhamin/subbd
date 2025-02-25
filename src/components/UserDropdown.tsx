@@ -2,6 +2,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { SignOutButton } from "@/components/auth/Signout";
 import {
   DropdownMenu,
@@ -17,10 +18,15 @@ import { UserCircle, Settings, LayoutDashboard } from "lucide-react";
 
 export function UserDropdown() {
   const { data: session } = useSession();
+  const router = useRouter();
   
   if (!session) return null;
   
   const userInitials = getUserInitials(session.user?.name || "User");
+  
+  const handleProfileClick = () => {
+    router.push('/profile');
+  };
   
   return (
     <DropdownMenu>
@@ -44,7 +50,10 @@ export function UserDropdown() {
           <LayoutDashboard className="mr-2 h-4 w-4" />
           <span>Dashboard</span>
         </DropdownMenuItem>
-        <DropdownMenuItem className="cursor-pointer">
+        <DropdownMenuItem 
+          className="cursor-pointer" 
+          onClick={handleProfileClick}
+        >
           <UserCircle className="mr-2 h-4 w-4" />
           <span>My Profile</span>
         </DropdownMenuItem>
